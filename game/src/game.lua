@@ -106,7 +106,7 @@ function Game.update(dt)
     local playerCol = math.floor(Game.player.x / Game.player.tileSize) + 1
     local playerRow = math.floor(Game.player.y / Game.player.tileSize) + 1
 
-    if Level.hasEnemy(Game.level, playerCol, playerRow) then
+    if Level.hasEnemyAt(Game.level, Game.player.x, Game.player.y, Game.player.tileSize, Game.player.tileSize) then
         Game.gameOver = true
     elseif Game.level.remainingCoins == 0 and Game.level:isDoorCell(playerCol, playerRow) then
         Game.win = true
@@ -128,6 +128,7 @@ function Game.draw()
     end
     love.graphics.setColor(r, g, b, a)
     Level.draw(Game.level, Game.colors, Game.glitch)
+    Level.drawEnemies(Game.level, Game.colors, Game.glitch)
     Player.draw(Game.player, Game.colors, Game.glitch)
     love.graphics.pop()
 

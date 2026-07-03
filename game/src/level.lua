@@ -54,109 +54,36 @@ local function placeCoins(coins, remainingCoins, positions)
     return remainingCoins
 end
 
-local function buildVariantOne()
-    local width = 24
-    local height = 16
-    local grid = createGrid(width, height)
+local function findHorizontalBounds(map, row, col)
+    local width = #map[row]
+    local leftCol = col
+    local rightCol = col
 
-    addBorder(grid, width, height)
-    fillRect(grid, 7, 2, 7, 14, "#")
-    setCell(grid, 7, 4, ".")
-    setCell(grid, 7, 11, ".")
-    fillRect(grid, 16, 3, 16, 15, "#")
-    setCell(grid, 16, 6, ".")
-    setCell(grid, 16, 10, ".")
-    setCell(grid, 16, 13, ".")
-    fillRect(grid, 2, 6, 22, 6, "#")
-    setCell(grid, 5, 6, ".")
-    setCell(grid, 12, 6, ".")
-    setCell(grid, 20, 6, ".")
-    fillRect(grid, 3, 10, 23, 10, "#")
-    setCell(grid, 8, 10, ".")
-    setCell(grid, 17, 10, ".")
-    fillRect(grid, 10, 3, 13, 4, "#")
-    fillRect(grid, 18, 12, 21, 13, "#")
+    while leftCol > 1 and map[row]:sub(leftCol - 1, leftCol - 1) ~= "#" do
+        leftCol = leftCol - 1
+    end
 
-    setCell(grid, 2, 2, "P")
-    setCell(grid, 4, 3, "C")
-    setCell(grid, 10, 4, "C")
-    setCell(grid, 20, 2, "C")
-    setCell(grid, 5, 12, "C")
-    setCell(grid, 12, 14, "C")
-    setCell(grid, 18, 11, "C")
-    setCell(grid, 22, 13, "D")
-    setCell(grid, 6, 8, "E")
-    setCell(grid, 14, 9, "E")
-    setCell(grid, 19, 5, "E")
+    while rightCol < width and map[row]:sub(rightCol + 1, rightCol + 1) ~= "#" do
+        rightCol = rightCol + 1
+    end
 
-    return {
-        map = finalizeMap(grid),
-        startCol = 2,
-        startRow = 2,
-        doorCol = 22,
-        doorRow = 13,
-    }
+    return leftCol, rightCol
 end
 
-local function buildVariantTwo()
-    local width = 24
-    local height = 16
-    local grid = createGrid(width, height)
-
-    addBorder(grid, width, height)
-    fillRect(grid, 5, 2, 5, 15, "#")
-    setCell(grid, 5, 5, ".")
-    setCell(grid, 5, 12, ".")
-    fillRect(grid, 12, 3, 12, 14, "#")
-    setCell(grid, 12, 4, ".")
-    setCell(grid, 12, 8, ".")
-    setCell(grid, 12, 13, ".")
-    fillRect(grid, 18, 2, 18, 15, "#")
-    setCell(grid, 18, 6, ".")
-    setCell(grid, 18, 11, ".")
-    fillRect(grid, 2, 7, 22, 7, "#")
-    setCell(grid, 3, 7, ".")
-    setCell(grid, 9, 7, ".")
-    setCell(grid, 15, 7, ".")
-    setCell(grid, 21, 7, ".")
-    fillRect(grid, 7, 11, 23, 11, "#")
-    setCell(grid, 10, 11, ".")
-    setCell(grid, 16, 11, ".")
-    fillRect(grid, 7, 3, 10, 4, "#")
-    fillRect(grid, 14, 12, 16, 13, "#")
-
-    setCell(grid, 2, 13, "P")
-    setCell(grid, 3, 3, "C")
-    setCell(grid, 9, 5, "C")
-    setCell(grid, 15, 4, "C")
-    setCell(grid, 20, 6, "C")
-    setCell(grid, 8, 9, "C")
-    setCell(grid, 14, 13, "C")
-    setCell(grid, 21, 14, "C")
-    setCell(grid, 22, 2, "D")
-    setCell(grid, 8, 14, "E")
-    setCell(grid, 16, 5, "E")
-    setCell(grid, 20, 12, "E")
-
-    return {
-        map = finalizeMap(grid),
-        startCol = 2,
-        startRow = 13,
-        doorCol = 22,
-        doorRow = 2,
-    }
+local function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh)
+    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
 end
 
 local function buildVariantThree()
     -- Layout provided by the user (1=wall, 0=empty, C=coin, P=player, E=end/door, B=enemy)
     local raw = {
-        "1111111111111111111111111",
-        "1C0000E0000P0000C000C1011",
-        "1C01111111111000C000C0001",
-        "1CB0CCCCCC0010011110C0001",
-        "1C00000C00001000C010C0001",
-        "1CC0000000000000000000001",
-        "1C00C01000CC0000C001C1001",
+        "1111111111111111111111111111111111111",
+        "1C0000E0000P0000C000C1010000000000001",
+        "1C01111111111000C000C0000000000000001",
+        "1CB00000CCC010011110C0000000000000001",
+        "1C00000C00001000C010C0000000000000001",
+        "1CC0000000000000000000000000000000001",
+        "1C00C01000CC0000C001C1001111111111111",
         "1CC0000001111001C000C0001",
         "1C000000000010111110C0001",
         "1C00010000001000C010C0011",
@@ -224,7 +151,25 @@ function Level.new(tileSize, startCol, startRow)
                 coins[row][col] = true
                 remainingCoins = remainingCoins + 1
             elseif cell == "E" then
-                enemies[#enemies + 1] = {col = col, row = row, flashTimer = math.random() * 6}
+                local leftCol, rightCol = findHorizontalBounds(map, row, col)
+                local leftX = (leftCol - 1) * tileSize
+                local rightX = (rightCol - 1) * tileSize
+                local baseY = (row - 1) * tileSize
+                enemies[#enemies + 1] = {
+                    col = col,
+                    row = row,
+                    flashTimer = math.random() * 6,
+                    animTimer = math.random() * 2,
+                    moveTimer = math.random() * 2,
+                    moveSpeed = tileSize * 1.8,
+                    leftX = leftX,
+                    rightX = rightX,
+                    x = leftX + math.random() * math.max(1, rightX - leftX),
+                    y = baseY,
+                    width = tileSize * 0.9,
+                    height = tileSize * 0.9,
+                    direction = math.random() < 0.5 and -1 or 1,
+                }
             end
         end
     end
@@ -236,6 +181,7 @@ function Level.new(tileSize, startCol, startRow)
         height = #map,
         wallImage = nil,
         doorImage = nil,
+        batFrames = {},
         coins = coins,
         remainingCoins = remainingCoins,
         enemies = enemies,
@@ -250,6 +196,8 @@ function Level.loadAssets(level)
     local pngPath = "assets/wall-0.png"
     local webpPath = "assets/wall-0.webp"
     local doorPath = "assets/textures/Door.png"
+    local bat1Path = "assets/textures/bat1.png"
+    local bat2Path = "assets/textures/bat2.png"
 
     if love.filesystem.getInfo(pngPath) then
         level.wallImage = love.graphics.newImage(pngPath)
@@ -266,6 +214,14 @@ function Level.loadAssets(level)
     else
         level.doorImage = nil
     end
+
+    level.batFrames = {}
+    if love.filesystem.getInfo(bat1Path) then
+        level.batFrames[#level.batFrames + 1] = love.graphics.newImage(bat1Path)
+    end
+    if love.filesystem.getInfo(bat2Path) then
+        level.batFrames[#level.batFrames + 1] = love.graphics.newImage(bat2Path)
+    end
 end
 
 function Level:isDoorCell(col, row)
@@ -274,7 +230,20 @@ end
 
 function Level.hasEnemy(level, col, row)
     for _, enemy in ipairs(level.enemies) do
-        if enemy.col == col and enemy.row == row then
+        local enemyCol = math.floor((enemy.x + enemy.width * 0.5) / level.tileSize) + 1
+        local enemyRow = math.floor((enemy.y + enemy.height * 0.5) / level.tileSize) + 1
+
+        if enemyCol == col and enemyRow == row then
+            return true
+        end
+    end
+
+    return false
+end
+
+function Level.hasEnemyAt(level, px, py, width, height)
+    for _, enemy in ipairs(level.enemies) do
+        if rectsOverlap(px, py, width, height, enemy.x, enemy.y, enemy.width, enemy.height) then
             return true
         end
     end
@@ -340,6 +309,18 @@ end
 function Level.update(level, dt)
     for _, enemy in ipairs(level.enemies) do
         enemy.flashTimer = enemy.flashTimer + dt
+        enemy.animTimer = enemy.animTimer + dt
+
+        enemy.x = enemy.x + enemy.direction * enemy.moveSpeed * dt
+        if enemy.x <= enemy.leftX then
+            enemy.x = enemy.leftX
+            enemy.direction = 1
+        elseif enemy.x >= enemy.rightX then
+            enemy.x = enemy.rightX
+            enemy.direction = -1
+        end
+
+        enemy.moveTimer = enemy.moveTimer + dt
     end
 end
 
@@ -406,19 +387,6 @@ function Level.draw(level, colors, glitchState)
                     end
                 end
 
-                if Level.hasEnemy(level, col, row) then
-                    local pulse = 0.5 + math.sin((row + col + (glitchState.timer or 0) * 9) * 1.2) * 0.18
-                    local enemySize = tileSize * 0.38 + pulse * 2
-                    local centerX = drawX + tileSize * 0.5
-                    local centerY = drawY + tileSize * 0.5
-
-                    love.graphics.setColor(0.95, 0.2, 0.28, 1)
-                    love.graphics.circle("fill", centerX, centerY, enemySize)
-                    love.graphics.setColor(1.0, 0.82, 0.82, 0.9)
-                    love.graphics.circle("fill", centerX - enemySize * 0.28, centerY - enemySize * 0.24, math.max(1.5, enemySize * 0.12))
-                    love.graphics.circle("fill", centerX + enemySize * 0.28, centerY - enemySize * 0.24, math.max(1.5, enemySize * 0.12))
-                end
-
                 if Level.hasCoin(level, col, row) then
                     local coinPulse = 0.5 + math.sin((row + col + (glitchState.timer or 0) * 8) * 0.9) * 0.15
                     local coinSize = tileSize * 0.18 + coinPulse * 2
@@ -430,6 +398,7 @@ function Level.draw(level, colors, glitchState)
                     love.graphics.setColor(1.0, 1.0, 0.75, 0.95)
                     love.graphics.circle("fill", centerX - coinSize * 0.3, centerY - coinSize * 0.3, math.max(1.5, coinSize * 0.25))
                 end
+
             end
         end
     end
@@ -448,6 +417,41 @@ function Level.draw(level, colors, glitchState)
             x = x + math.cos((col + glitchState.warningTimer * 8) * 1.5) * 1.5 * warningPulse
         end
         love.graphics.line(x, 0, x, level.height * tileSize)
+    end
+end
+
+function Level.drawEnemies(level, colors, glitchState)
+    local tileSize = level.tileSize
+
+    for _, enemy in ipairs(level.enemies) do
+        local row = math.floor((enemy.y + enemy.height * 0.5) / tileSize) + 1
+        local col = math.floor((enemy.x + enemy.width * 0.5) / tileSize) + 1
+        local bob = 0.5 + math.sin((row + col + (glitchState.timer or 0) * 9) * 1.2) * 0.08
+        local frameCount = #level.batFrames
+        local frameIndex = frameCount > 0 and (math.floor(enemy.animTimer * 4) % frameCount) + 1 or 0
+        local batImage = frameCount > 0 and level.batFrames[frameIndex] or nil
+        local batCenterX = enemy.x + enemy.width * 0.5
+        local batCenterY = enemy.y + enemy.height * 0.5 + bob
+
+        if batImage then
+            local spriteWidth = batImage:getWidth()
+            local spriteHeight = batImage:getHeight()
+            local scale = (tileSize * 0.9) / math.max(spriteWidth, spriteHeight)
+            local scaleX = enemy.direction > 0 and -scale or scale
+            local scaleY = scale
+
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(batImage, batCenterX, batCenterY, 0, scaleX, scaleY, spriteWidth * 0.5, spriteHeight * 0.5)
+        else
+            local pulse = 0.5 + math.sin((row + col + (glitchState.timer or 0) * 9) * 1.2) * 0.18
+            local enemySize = tileSize * 0.38 + pulse * 2
+
+            love.graphics.setColor(0.95, 0.2, 0.28, 1)
+            love.graphics.circle("fill", batCenterX, batCenterY, enemySize)
+            love.graphics.setColor(1.0, 0.82, 0.82, 0.9)
+            love.graphics.circle("fill", batCenterX - enemySize * 0.28, batCenterY - enemySize * 0.24, math.max(1.5, enemySize * 0.12))
+            love.graphics.circle("fill", batCenterX + enemySize * 0.28, batCenterY - enemySize * 0.24, math.max(1.5, enemySize * 0.12))
+        end
     end
 end
 
