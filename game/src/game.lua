@@ -13,13 +13,13 @@ function Game.load()
     Game.glitch = Glitch.new()
     Game.colors = {
         background = {0.06, 0.06, 0.09},
-        floor = {0.11, 0.11, 0.15},
+        floor = {0, 0, 0},
         wall = {0.85, 0.15, 0.95, 1},
-        grid = {1, 1, 1, 0.06},
+        grid = {0, 0, 0},
         coin = {1.0, 0.92, 0.2, 1},
         player = {1.0, 0.92, 0.18, 1},
         playerGlow = {1.0, 0.82, 0.12},
-        trail = {1.0, 0.78, 0.15},
+        trail = {1.0, 1, 0.2},
         text = {0.9, 0.92, 1, 1},
     }
 
@@ -33,6 +33,7 @@ function Game.load()
     Game.moveBuffer = {dx = 0, dy = 0}
     Game.gameOver = false
     Game.win = false
+    Game.endTimer = 0
     Game.updateCamera()
 end
 
@@ -79,6 +80,10 @@ end
 
 function Game.update(dt)
     if Game.gameOver or Game.win then
+        Game.endTimer = Game.endTimer + dt
+        if Game.endTimer > 0 then
+            love.event.quit()
+        end
         return
     end
 

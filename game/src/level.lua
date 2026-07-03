@@ -148,59 +148,64 @@ local function buildVariantTwo()
 end
 
 local function buildVariantThree()
-    local width = 24
-    local height = 16
-    local grid = createGrid(width, height)
+    -- Layout provided by the user (1=wall, 0=empty, C=coin, P=player, E=end/door, B=enemy)
+    local raw = {
+        "1111111111111111111111111",
+        "1C0000E0000P0000C000C1011",
+        "1C01111111111000C000C0001",
+        "1CB0CCCCCC0010011110C0001",
+        "1C00000C00001000C010C0001",
+        "1CC0000000000000000000001",
+        "1C00C01000CC0000C001C1001",
+        "1CC0000001111001C000C0001",
+        "1C000000000010111110C0001",
+        "1C00010000001000C010C0011",
+        "1111111111111111111111111",
+    }
 
-    addBorder(grid, width, height)
-    fillRect(grid, 6, 2, 6, 13, "#")
-    setCell(grid, 6, 4, ".")
-    setCell(grid, 6, 8, ".")
-    setCell(grid, 6, 11, ".")
-    fillRect(grid, 13, 3, 13, 15, "#")
-    setCell(grid, 13, 5, ".")
-    setCell(grid, 13, 9, ".")
-    setCell(grid, 13, 13, ".")
-    fillRect(grid, 19, 2, 19, 14, "#")
-    setCell(grid, 19, 6, ".")
-    setCell(grid, 19, 10, ".")
-    setCell(grid, 19, 12, ".")
-    fillRect(grid, 2, 5, 22, 5, "#")
-    setCell(grid, 4, 5, ".")
-    setCell(grid, 10, 5, ".")
-    setCell(grid, 16, 5, ".")
-    setCell(grid, 21, 5, ".")
-    fillRect(grid, 3, 10, 23, 10, "#")
-    setCell(grid, 5, 10, ".")
-    setCell(grid, 11, 10, ".")
-    setCell(grid, 17, 10, ".")
-    fillRect(grid, 8, 7, 11, 8, "#")
-    fillRect(grid, 15, 12, 17, 13, "#")
+    local map = {}
+    local startCol, startRow, doorCol, doorRow
 
-    setCell(grid, 2, 2, "P")
-    setCell(grid, 4, 3, "C")
-    setCell(grid, 9, 4, "C")
-    setCell(grid, 10, 8, "C")
-    setCell(grid, 15, 2, "C")
-    setCell(grid, 16, 14, "C")
-    setCell(grid, 21, 12, "C")
-    setCell(grid, 22, 13, "D")
-    setCell(grid, 3, 12, "E")
-    setCell(grid, 8, 12, "E")
-    setCell(grid, 21, 8, "E")
+    for r = 1, #raw do
+        local line = {}
+        for c = 1, #raw[r] do
+            local ch = raw[r]:sub(c, c)
+            local out = ch
+
+            if ch == "1" then
+                out = "#"
+            elseif ch == "0" then
+                out = "."
+            elseif ch == "P" then
+                out = "."
+                startCol = c
+                startRow = r
+            elseif ch == "E" then
+                -- user's E is the door; convert to D
+                out = "D"
+                doorCol = c
+                doorRow = r
+            elseif ch == "B" then
+                -- user's B is enemy start; convert to E (enemy)
+                out = "E"
+            end
+
+            line[c] = out
+        end
+        map[r] = table.concat(line)
+    end
 
     return {
-        map = finalizeMap(grid),
-        startCol = 2,
-        startRow = 2,
-        doorCol = 22,
-        doorRow = 13,
+        map = map,
+        startCol = startCol or 2,
+        startRow = startRow or 2,
+        doorCol = doorCol,
+        doorRow = doorRow,
     }
 end
 
 local function buildVariant()
-    local builders = {buildVariantOne, buildVariantTwo, buildVariantThree}
-    return builders[math.random(#builders)]()
+    return buildVariantThree()
 end
 
 function Level.new(tileSize, startCol, startRow)
@@ -230,6 +235,7 @@ function Level.new(tileSize, startCol, startRow)
         width = #map[1],
         height = #map,
         wallImage = nil,
+        doorImage = nil,
         coins = coins,
         remainingCoins = remainingCoins,
         enemies = enemies,
@@ -243,6 +249,7 @@ end
 function Level.loadAssets(level)
     local pngPath = "assets/wall-0.png"
     local webpPath = "assets/wall-0.webp"
+    local doorPath = "assets/textures/Door.png"
 
     if love.filesystem.getInfo(pngPath) then
         level.wallImage = love.graphics.newImage(pngPath)
@@ -252,6 +259,12 @@ function Level.loadAssets(level)
         else
             level.wallImage = nil
         end
+    end
+
+    if love.filesystem.getInfo(doorPath) then
+        level.doorImage = love.graphics.newImage(doorPath)
+    else
+        level.doorImage = nil
     end
 end
 
@@ -277,10 +290,6 @@ function Level:isPassableCell(col, row)
 
     local cell = line:sub(col, col)
     if cell == "#" then
-        return false
-    end
-
-    if cell == "D" and self.remainingCoins > 0 then
         return false
     end
 
@@ -376,18 +385,24 @@ function Level.draw(level, colors, glitchState)
 
                 if level:isDoorCell(col, row) then
                     local doorLocked = level.remainingCoins > 0
-                    local doorInset = tileSize * 0.14
-
-                    if doorLocked then
-                        love.graphics.setColor(0.38, 0.16, 0.45, 1)
-                        love.graphics.rectangle("fill", drawX + doorInset, drawY + doorInset, tileSize - doorInset * 2, tileSize - doorInset * 2, 5, 5)
-                        love.graphics.setColor(1.0, 0.82, 0.2, 1)
-                        love.graphics.rectangle("fill", drawX + tileSize * 0.44, drawY + tileSize * 0.34, tileSize * 0.12, tileSize * 0.22, 3, 3)
+                    if level.doorImage then
+                        local tintAlpha = doorLocked and 0.75 or 1
+                        love.graphics.setColor(1, 1, 1, tintAlpha)
+                        love.graphics.draw(level.doorImage, drawX, drawY, 0, tileSize / level.doorImage:getWidth(), tileSize / level.doorImage:getHeight())
                     else
-                        love.graphics.setColor(0.2, 0.8, 0.4, 1)
-                        love.graphics.rectangle("fill", drawX + doorInset, drawY + doorInset, tileSize - doorInset * 2, tileSize - doorInset * 2, 5, 5)
-                        love.graphics.setColor(0.92, 1.0, 0.95, 0.85)
-                        love.graphics.rectangle("line", drawX + doorInset, drawY + doorInset, tileSize - doorInset * 2, tileSize - doorInset * 2, 5, 5)
+                        local doorInset = tileSize * 0.14
+
+                        if doorLocked then
+                            love.graphics.setColor(0.38, 0.16, 0.45, 1)
+                            love.graphics.rectangle("fill", drawX + doorInset, drawY + doorInset, tileSize - doorInset * 2, tileSize - doorInset * 2, 5, 5)
+                            love.graphics.setColor(1.0, 0.82, 0.2, 1)
+                            love.graphics.rectangle("fill", drawX + tileSize * 0.44, drawY + tileSize * 0.34, tileSize * 0.12, tileSize * 0.22, 3, 3)
+                        else
+                            love.graphics.setColor(0.2, 0.8, 0.4, 1)
+                            love.graphics.rectangle("fill", drawX + doorInset, drawY + doorInset, tileSize - doorInset * 2, tileSize - doorInset * 2, 5, 5)
+                            love.graphics.setColor(0.92, 1.0, 0.95, 0.85)
+                            love.graphics.rectangle("line", drawX + doorInset, drawY + doorInset, tileSize - doorInset * 2, tileSize - doorInset * 2, 5, 5)
+                        end
                     end
                 end
 
